@@ -17,12 +17,15 @@ def run_mosaic_solution():
     else:
         print(f"Successfully opened video source {video_source}")
 
-    # Create window
+    # Set up windows
     window_match = 'Lab: Image mosaics from feature matching'
     window_mosaic = 'Mosaic Result'
-
     cv2.namedWindow(window_match, cv2.WINDOW_NORMAL)
     cv2.namedWindow(window_mosaic, cv2.WINDOW_NORMAL)
+
+    detector = cv2.xfeatures2d.SIFT_create()
+    desc_extractor = cv2.xfeatures2d.SIFT_create()
+    cv2.BFMatcher_create(desc_extractor.defaultNorm())
 
     while True:
         # Read next frame.
