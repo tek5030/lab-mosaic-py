@@ -94,19 +94,17 @@ class HomographyEstimator:
         """Estimates a homography from point correspondences using DLT."""
 
         # Construct the equation matrix
-        np.array([
-            [],
-            []
-        ])
-
-        tmp = lambda pt1, pt2 : np.array([
+        x = lambda pt1, pt2 : np.array([
             [0, 0, 0, -pt1[0], -pt1[1], -1, pt2[1]*pt1[0], pt2[1]*pt1[1], pt2[1]],
             [pt1[0], pt1[1], 1, 0, 0, 0, -pt2[0]*pt1[0], -pt2[0]*pt1[1], -pt2[0]]
         ])
 
-        #for pt1, pt2 in zip(pts1, pts2):
+        #pts1 = np.array([[1, 1], [2, 2], [3, 3]])
+        #pts2 = a = np.array([[1,1],[2,2],[3,3]])
 
+        a = np.concatenate(list(map(x, pts1, pts2)), axis=0)
 
+        # Solve using SVD
 
 
 def run_mosaic_solution():
