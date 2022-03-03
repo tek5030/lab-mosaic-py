@@ -46,20 +46,6 @@ def randomly_select_points(pts1, pts2, num_points):
     return pts1[:, idx], pts2[:, idx]
 
 
-def extract_good_ratio_matches(matches, max_ratio):
-    """
-    Extracts a set of good matches according to the ratio test.
-
-    :param matches: Input set of matches, the best and the second best match for each putative correspondence.
-    :param max_ratio: Maximum acceptable ratio between the best and the next best match.
-    :return: The set of matches that pass the ratio test.
-    """
-    npmatches = np.asarray(matches)
-    distances = np.array([m.distance for m in npmatches.ravel()]).reshape(npmatches.shape)
-    good = distances[:, 0] < distances[:, 1] * max_ratio
-    return tuple(npmatches[good, 0])
-
-
 def extract_matching_points(keypoints1, keypoints2, matches):
     """
     Extracts the point correspondences from matches as columns in Eigen matrices.
@@ -88,7 +74,7 @@ def draw_keypoint_detections(img, keypoints, duration, colour=None):
 
 
 def draw_keypoint_matches(img1, keypoints1, img2, keypoints2, matches, duration_detection, duration_matching):
-    """Helper function to draw kepoint matches"""
+    """Helper function to draw keypoint matches"""
     vis_img = cv2.drawMatches(img1, keypoints1, img2, keypoints2, matches, None, flags=2)
     cv2.putText(vis_img, f"detection: {duration_detection:.2f}", (10, 20), font.face, font.scale, colours.red)
     cv2.putText(vis_img, f"matching:  {duration_matching:.2f}", (10, 40), font.face, font.scale, colours.red)
@@ -101,16 +87,11 @@ def draw_estimation_details(vis_img, duration, num_inliers):
     cv2.putText(vis_img, f"inliers:      {num_inliers:}", (10, 80), font.face, font.scale, colours.red)
 
 
-def multiply_homogeneous(m, pts):
-    """
-    Multiply a MxM matrix with a set of ((M-1)x1) vectors by making the vectors homogeneous (Mx1)
-    :param m: The MxM matrix
-    :param pts: The N (M-1x1) vectors
-    :return: N (M-1x1) vectors hnormalized after multipliation
-    """
-    n = pts.shape[1]
-    pts_h = np.r_[pts, [np.ones(n)]]
+def homogeneous(x):
+    """Transforms a Cartesian vector to a homogeneous vector"""
+    return np.r_[x, [np.ones(x.shape[1])]]
 
-    hnormalized = lambda m: m[:-1, :] / m[-1, :]
 
-    return hnormalized(m @ pts_h)
+def hnormalized(x):
+    """Transforms a homogeneous vector to a Cartesian vector"""
+    return x[:-1] / x[-1]
