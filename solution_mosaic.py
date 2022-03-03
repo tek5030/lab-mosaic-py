@@ -96,6 +96,8 @@ class HomographyEstimator:
         return best_inliers, best_num_inliers
 
     def _compute_reprojection_error(self, pt1, pt2, h, h_inv):
+        """Computes the two-sided reprojection error for a given homography."""
+
         # Map points onto each other using the homography
 
         pt1_in_2 = multiply_homogeneous(h, pt1)
@@ -130,6 +132,8 @@ class HomographyEstimator:
         return h
 
     def _normalized_dlt_estimator(self, pts1, pts2):
+        """Estimates a homography from point correspondences using the normalized DLT."""
+
         # Normalize points
         s1 = self._find_normalizing_similarity(pts1)
         s2 = self._find_normalizing_similarity(pts2)
@@ -149,6 +153,8 @@ class HomographyEstimator:
         return h
 
     def _find_normalizing_similarity(self, pts):
+        """Finds a normalizing similarity transform for a set of points."""
+
         # Centroid of points
         center = np.mean(pts, axis=1)
 
