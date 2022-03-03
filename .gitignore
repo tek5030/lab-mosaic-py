@@ -1,3 +1,5 @@
 .idea
 opencv-python
 venv
+__pycache__
+opencv-python*

@@ -1,13 +1,15 @@
 import cv2
 import numpy as np
+from scipy import linalg
 import timeit
 
 from common_lab_utils import *
 
+
 class HomographyEstimator:
     """Estimates a homography from point correspondences using RANSAC."""
 
-    def __init__(self, p=0.99, distance_threshold=5.0, max_iterations=10000):
+    def __init__(self, p=0.99, distance_threshold=5.0, max_iterations=1000):
         """
         Constructs the estimator.
 
@@ -30,17 +32,22 @@ class HomographyEstimator:
         if len(pts1) != len(pts2):
             raise ValueError("Point correspondence matrices did not have same size")
 
-        # Find inliers
-        is_inlier = self._ransac_estimator(pts1, pts2)
+        pts1 = np.asarray(pts1).transpose()
+        pts2 = np.asarray(pts2).transpose()
 
-        if len(is_inlier) < 4:
+        # Find inliers
+        is_inlier, num_inliers = self._ransac_estimator(pts1, pts2)
+
+        if num_inliers < 4:
             return None
 
         # Estimate homography from set of inliers
-        inliers_1 = pts1[is_inlier]
-        inliers_2 = pts2[is_inlier]
+        inliers_1 = pts1[:, is_inlier]
+        inliers_2 = pts2[:, is_inlier]
 
-        return HomographyEstimate(normalized_dlt_estimator(inliers_1, inliers_2), len(is_inlier), is_inlier)
+        h = self._normalized_dlt_estimator(inliers_1, inliers_2)
+
+        return HomographyEstimate(h, num_inliers, is_inlier)
 
     def _ransac_estimator(self, pts1, pts2):
         """Finds a set of inliers for estimating a homography."""
@@ -48,7 +55,6 @@ class HomographyEstimator:
         # Initialize maximum number of iterations.
         num_iterations = self._max_iterations
         iteration = 0
-        test_inliers = []
         best_inliers = []
         best_num_inliers = 0
 
@@ -56,21 +62,20 @@ class HomographyEstimator:
         while iteration < num_iterations:
             iteration += 1
 
-            # Sample 4 random points
-            rand_selection = randomly_select_points(pts1, num_samples)
-            samples_1 = pts1[rand_selection]
-            samples_2 = pts2[rand_selection]
+            # Sample 4 random point correspondences
+            samples_1, samples_2 = randomly_select_points(pts1, pts2, num_samples)
 
             # Determine test homography
-            test_h = dlt_estimator(samples_1, samples_2)
-            test_h_inv = np.invert(test_H)
+            test_h = self._dlt_estimator(samples_1, samples_2)
+            test_h_inv = linalg.inv(test_h)
 
             # Count number of inliers
-            test_num_inliers = 0
-            for i in range(0, len(pts1)):
-                if compute_reprojection_error(pts1[i], pts2[i], test_H, test_H_inv) < self._distance_threshold:
-                    test_inliers.append(i)
-                    test_num_inliers += 1
+            reprojection_error = self._compute_reprojection_error(pts1, pts2, test_h, test_h_inv)
+
+            test_inliers = reprojection_error < self._distance_threshold
+            test_num_inliers = np.count_nonzero(test_inliers)
+            # FIXME: Aldri noen inliers
+            print(f"num inliers: {test_num_inliers}")
 
             # Update homography if test homography has the most inliers so far
             if test_num_inliers > 4 and test_num_inliers > best_num_inliers:
@@ -79,7 +84,7 @@ class HomographyEstimator:
                 best_num_inliers = test_num_inliers
 
                 # Adaptively update number of iterations.
-                inlier_ratio = best_num_inliers / len(pts1)
+                inlier_ratio = best_num_inliers / pts1.shape[1]
                 if inlier_ratio == 1.0:
                     break
 
@@ -88,23 +93,78 @@ class HomographyEstimator:
                     self._max_iterations
                 )
 
-        return best_inliers
+        return best_inliers, best_num_inliers
 
-    def dlt_estimator(self, pts1, pts2):
+    def _compute_reprojection_error(self, pt1, pt2, h, h_inv):
+        # Map points onto each other using the homography
+
+        pt1_in_2 = multiply_homogeneous(h, pt1)
+        pt2_in_1 = multiply_homogeneous(h_inv, pt2)
+
+        # Compute the two-sided reprojection error \sigma_i.
+        reprojection_error = np.linalg.norm(pt1 - pt2_in_1, axis=0) + np.linalg.norm(pt2 - pt1_in_2, axis=0)
+
+        return reprojection_error
+
+    def _dlt_estimator(self, pts1, pts2):
         """Estimates a homography from point correspondences using DLT."""
 
+        # FIXME: Flytt evt til annet sted, eller bruk slicing som i cpp
+        def x(pt1, pt2):
+            return np.array([
+                [0., 0., 0., -pt1[0], -pt1[1], -1., pt2[1] * pt1[0], pt2[1] * pt1[1], pt2[1]],
+                [pt1[0], pt1[1], 1., 0., 0., 0., -pt2[0] * pt1[0], -pt2[0] * pt1[1], -pt2[0]]
+            ])
+
         # Construct the equation matrix
-        x = lambda pt1, pt2 : np.array([
-            [0, 0, 0, -pt1[0], -pt1[1], -1, pt2[1]*pt1[0], pt2[1]*pt1[1], pt2[1]],
-            [pt1[0], pt1[1], 1, 0, 0, 0, -pt2[0]*pt1[0], -pt2[0]*pt1[1], -pt2[0]]
-        ])
 
-        #pts1 = np.array([[1, 1], [2, 2], [3, 3]])
-        #pts2 = a = np.array([[1,1],[2,2],[3,3]])
-
-        a = np.concatenate(list(map(x, pts1, pts2)), axis=0)
+        a = np.concatenate([m for m in map(x, pts1.transpose(), pts2.transpose())], axis=0)
 
         # Solve using SVD
+        u, s, vh = linalg.svd(a, full_matrices=True, compute_uv=True, overwrite_a=True)
+        h = vh[:, -1].reshape((3, 3))
+
+        print(f"h:\n{h}\n")
+        # FIXME: return h
+        #return np.eye(3)
+        return h
+
+    def _normalized_dlt_estimator(self, pts1, pts2):
+        # Normalize points
+        s1 = self._find_normalizing_similarity(pts1)
+        s2 = self._find_normalizing_similarity(pts2)
+        pts1_normalized = multiply_homogeneous(s1, pts1)
+        pts2_normalized = multiply_homogeneous(s2, pts2)
+
+        # Estimate the homography
+        h = self._dlt_estimator(pts1_normalized, pts2_normalized)
+
+        # Transform back to the original frame
+        h = linalg.inv(s2) @ h @ s1
+
+        # Standardize H
+        if h[2, 2] != 0:
+            h /= h[2, 2]
+
+        return h
+
+    def _find_normalizing_similarity(self, pts):
+        # Centroid of points
+        center = np.mean(pts, axis=1)
+
+        # Compute the mean distance from centroid over all pts
+        r_mean = np.mean(np.linalg.norm(pts - center[:, np.newaxis], axis=0))
+
+        # The normalizing similarity matrix s
+        sc = np.sqrt(2.) / r_mean
+
+        s = np.array([
+            [sc, 0, -sc * center[0]],
+            [0, sc, -sc * center[1]],
+            [0, 0, 1]
+        ])
+
+        return s
 
 
 def run_mosaic_solution():
@@ -126,47 +186,134 @@ def run_mosaic_solution():
     cv2.namedWindow(window_match, cv2.WINDOW_NORMAL)
     cv2.namedWindow(window_mosaic, cv2.WINDOW_NORMAL)
 
+    # Set up a similarity transform.
+    # Question: What does this similarity transform do?
+    frame_cols = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    frame_rows = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    img_size = np.array((frame_cols, frame_rows), dtype=int)
+
+    s = np.array([
+        [0.5, 0.0, 0.25 * frame_cols],
+        [0.0, 0.5, 0.25 * frame_rows],
+        [0.0, 0.0, 1.0]
+    ])
+
     detector = cv2.SIFT_create()
     desc_extractor = cv2.SIFT_create()
-    cv2.BFMatcher_create(desc_extractor.defaultNorm())
+    matcher = cv2.BFMatcher_create(desc_extractor.defaultNorm())
 
     # Create homography estimator
+    estimator = HomographyEstimator()
 
+    ref_image = None
+    ref_keypoints = None
+    ref_descriptors = None
 
     while True:
         # Read next frame.
-        success, frame = cap.read()
+        success, curr_image = cap.read()
         if not success:
             print(f"The video source {video_source} stopped")
             break
 
         # Convert frame to gray scale image.
-        gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        gray_frame = cv2.cvtColor(curr_image, cv2.COLOR_BGR2GRAY)
+        vis_img = np.copy(curr_image)
 
         # Detect keypoints
         # Measure how long the processing takes.
         start = timeit.default_timer()
-        keypoints = np.asarray(detector.detect(gray_frame))
-        print(f"keypoints: {type(keypoints[0])}")
+        curr_keypoints = np.asarray(detector.detect(gray_frame))
         end = timeit.default_timer()
-        duration_corners = end - start
+        duration_detection = end - start
 
         # Keep the highest scoring points.
-        best = retain_best(keypoints, 500)
-        best_keypoints = keypoints[best]
+        best = retain_best(curr_keypoints, 500)
+        curr_keypoints = curr_keypoints[best]
+
+        if ref_descriptors is None:
+            draw_keypoint_detections(vis_img, curr_keypoints, duration_detection, colours.red)
+        else:
+            # Try to match features!
+            # Measure how long the matching takes.
+            start = timeit.default_timer()
+
+            curr_keypoints, frame_descriptors = desc_extractor.compute(gray_frame, curr_keypoints)
+            matches = matcher.knnMatch(frame_descriptors, ref_descriptors, k=2)
+            good_matches = extract_good_ratio_matches(matches, max_ratio=0.8)
+
+            end = timeit.default_timer()
+            duration_matching = end - start
+
+            # Draw matching result
+            vis_img = draw_keypoint_matches(
+                curr_image,
+                curr_keypoints,
+                ref_image,
+                ref_keypoints,
+                good_matches,
+                duration_detection,
+                duration_matching
+            )
+
+            if len(good_matches) >= 10:
+                # Extract pixel coordinates for corresponding points.
+                matching_pts1, matching_pts2 = extract_matching_points(curr_keypoints, ref_keypoints, good_matches)
+
+                # Estimate homography
+                # Measure how long the estimation takes.
+                start = timeit.default_timer()
+
+                estimate = estimator.estimate(matching_pts1, matching_pts2)
+
+                end = timeit.default_timer()
+                duration_estimation = end - start
+
+                # Transform the reference image according to the similarity S, and insert into the mosaic.
+                mosaic = cv2.warpPerspective(ref_image, s, img_size)
+
+                # Transform the current frame according to S and the computed homography.
+                if estimate is not None:
+                    h = estimate.homography
+                    frame_warp = cv2.warpPerspective(curr_image, s @ h, img_size)
+
+                    # Compute a mask for the transformed image
+                    mask = np.ones(np.flip(img_size), dtype=np.uint8)
+                    mask_warp = cv2.warpPerspective(mask, s @ h, img_size)
+                    mask_warp = cv2.erode(mask_warp, np.ones((3, 3)))
+
+                    # Insert the current frame into the mosaic
+                    cv2.copyTo(frame_warp, mask_warp, dst=mosaic)
+
+                    # Draw estimation duration
+                    draw_estimation_details(vis_img, duration_estimation, estimate.num_inliers)
+
+                cv2.imshow(window_mosaic, mosaic)
 
         # Show the results
-        draw_keypoint_detections(frame, best_keypoints, duration_corners, Colour.red)
-        cv2.imshow(window_match, frame)
-        cv2.imshow(window_mosaic, gray_frame)
+        cv2.imshow(window_match, vis_img)
 
         # Update the GUI and wait a short time for input from the keyboard.
         key = cv2.waitKey(1)
 
         # React to keyboard commands.
         if key == ord('q'):
-            print("Quitting")
+            print("Quit")
             break
+        elif key == ord(' '):
+            # Set reference image for mosaic and compute descriptors.
+            print("Set reference image")
+            ref_image = np.copy(curr_image)
+            ref_keypoints, ref_descriptors = desc_extractor.compute(gray_frame, curr_keypoints)
+
+
+        elif key == ord('r'):
+            # Reset
+            # Make all reference data empty
+            print("Reset")
+            ref_image = None
+            ref_keypoints = None
+            ref_descriptors = None
 
     # Stop video source.
     cv2.destroyAllWindows()
