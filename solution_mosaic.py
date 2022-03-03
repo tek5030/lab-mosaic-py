@@ -46,6 +46,8 @@ class HomographyEstimator:
         inliers_2 = pts2[:, is_inlier]
 
         h = self._normalized_dlt_estimator(inliers_1, inliers_2)
+        if h is None:
+            return None
 
         return HomographyEstimate(h, num_inliers, is_inlier)
 
@@ -67,6 +69,9 @@ class HomographyEstimator:
 
             # Determine test homography
             test_h = self._dlt_estimator(samples_1, samples_2)
+            if test_h is None:
+                return [], 0
+
             test_h_inv = linalg.inv(test_h)
 
             # Count number of inliers
@@ -74,8 +79,6 @@ class HomographyEstimator:
 
             test_inliers = reprojection_error < self._distance_threshold
             test_num_inliers = np.count_nonzero(test_inliers)
-            # FIXME: Aldri noen inliers
-            print(f"num inliers: {test_num_inliers}")
 
             # Update homography if test homography has the most inliers so far
             if test_num_inliers > 4 and test_num_inliers > best_num_inliers:
@@ -111,7 +114,6 @@ class HomographyEstimator:
     def _dlt_estimator(self, pts1, pts2):
         """Estimates a homography from point correspondences using DLT."""
 
-        # FIXME: Flytt evt til annet sted, eller bruk slicing som i cpp
         def x(pt1, pt2):
             return np.array([
                 [0., 0., 0., -pt1[0], -pt1[1], -1., pt2[1] * pt1[0], pt2[1] * pt1[1], pt2[1]],
@@ -119,16 +121,17 @@ class HomographyEstimator:
             ])
 
         # Construct the equation matrix
-
         a = np.concatenate([m for m in map(x, pts1.transpose(), pts2.transpose())], axis=0)
 
         # Solve using SVD
-        u, s, vh = linalg.svd(a, full_matrices=True, compute_uv=True, overwrite_a=True)
-        h = vh[:, -1].reshape((3, 3))
+        try:
+            u, s, vh = linalg.svd(a, full_matrices=True, overwrite_a=True)
+        except linalg.LinAlgError:
+            print("Warning: SVD computation did not converge")
+            return None
 
-        print(f"h:\n{h}\n")
-        # FIXME: return h
-        #return np.eye(3)
+        h = vh[-1, :].reshape((3, 3))
+
         return h
 
     def _normalized_dlt_estimator(self, pts1, pts2):
@@ -142,6 +145,8 @@ class HomographyEstimator:
 
         # Estimate the homography
         h = self._dlt_estimator(pts1_normalized, pts2_normalized)
+        if h is None:
+            return None
 
         # Transform back to the original frame
         h = linalg.inv(s2) @ h @ s1
