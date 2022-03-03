@@ -68,7 +68,7 @@ def run_mosaic_lab():
         # Detect keypoints
         # Measure how long the processing takes.
         start = timeit.default_timer()
-        curr_keypoints = np.asarray(detector.detect(gray_frame))
+        curr_keypoints = detector.detect(gray_frame)
         end = timeit.default_timer()
         duration_detection = end - start
 
