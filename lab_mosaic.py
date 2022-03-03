@@ -22,8 +22,8 @@ def run_mosaic_lab():
         print(f"Successfully opened video source {video_source}")
 
     # Set up windows
-    window_match = 'Lab: Image mosaics from feature matching'
-    window_mosaic = 'Mosaic result'
+    window_match = 'Feature detection and matching'
+    window_mosaic = 'Mosaic'
     cv2.namedWindow(window_match, cv2.WINDOW_NORMAL)
     cv2.namedWindow(window_mosaic, cv2.WINDOW_NORMAL)
 
