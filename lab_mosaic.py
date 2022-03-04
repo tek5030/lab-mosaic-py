@@ -291,7 +291,7 @@ class HomographyEstimator:
         pt1_in_2 = None     # Dummy, compute!
         pt2_in_1 = None     # Dummy, compute!
 
-        # Compute the two-sided reprojection error \sigma_i.
+        # Compute the two-sided reprojection error \epsilon_i.
         reprojection_error = 2*self._distance_threshold     # Dummy, compute correct error!
 
         return reprojection_error

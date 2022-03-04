@@ -296,7 +296,7 @@ class HomographyEstimator:
         pt1_in_2 = hnormalized(H @ homogeneous(pt1))
         pt2_in_1 = hnormalized(H_inv @ homogeneous(pt2))
 
-        # Compute the two-sided reprojection error \sigma_i.
+        # Compute the two-sided reprojection error \epsilon_i.
         reprojection_error = np.linalg.norm(pt1 - pt2_in_1, axis=0) + np.linalg.norm(pt2 - pt1_in_2, axis=0)
 
         return reprojection_error
