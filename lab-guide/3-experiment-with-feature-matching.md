@@ -28,7 +28,10 @@ You should now see results from matching the next current frames with the refere
 Does your implementation still look reasonable?
 
 ## 3. Experiment with feature matching
-Now that you have a working feature matching system, play around with different detectors and descriptors from the [features2d](https://docs.opencv.org/4.5.5/da/d9b/group__features2d.html) and [xfeatures2d](https://docs.opencv.org/4.5.5/d1/db4/group__xfeatures2d.html) modules in OpenCV. 
+Now that you have a working feature matching system, play around with different detectors and descriptors from the [features2d] and [xfeatures2d] modules in OpenCV. 
 Which methods are faster and which methods are more robust?
 
 In the [next part](4-homography-estimation.md), we will use this feature matching system to compute the transformation between the reference frame and the current frames.
+
+[features2d]:  https://docs.opencv.org/4.5.5/da/d9b/group__features2d.html
+[xfeatures2d]: https://docs.opencv.org/4.5.5/d1/db4/group__xfeatures2d.html
