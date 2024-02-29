@@ -23,7 +23,7 @@ Take a look at the function `extract_good_ratio_matches()` in [lab_mosaic.py](..
 Use the inputs `matches` and `max_ratio` to perform the ratio test, and return only the (best) matches that passes this test.
 
 When your implementation seems reasonable, compile and run the program. 
-Press *\<space\>* to set the current frame to the reference frame. 
+Press <kbd>space</kbd> to set the current frame to the reference frame. 
 You should now see results from matching the next current frames with the reference. 
 Does your implementation still look reasonable?
 
@@ -33,5 +33,5 @@ Which methods are faster and which methods are more robust?
 
 In the [next part](4-homography-estimation.md), we will use this feature matching system to compute the transformation between the reference frame and the current frames.
 
-[features2d]:  https://docs.opencv.org/4.5.5/da/d9b/group__features2d.html
-[xfeatures2d]: https://docs.opencv.org/4.5.5/d1/db4/group__xfeatures2d.html
+[features2d]:  https://docs.opencv.org/4.9.0/da/d9b/group__features2d.html
+[xfeatures2d]: https://docs.opencv.org/4.9.0/d1/db4/group__xfeatures2d.html
