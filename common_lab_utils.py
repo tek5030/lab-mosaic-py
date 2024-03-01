@@ -1,13 +1,13 @@
 import cv2
 import numpy as np
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
 class HomographyEstimate:
-    homography: np.ndarray = np.array([], dtype=np.float32)
+    homography: np.ndarray = field(default_factory=lambda: np.array(object=[], dtype=np.float32))
     num_inliers: int = 0
-    inliers: np.ndarray = np.array([], dtype=int)
+    inliers: np.ndarray = field(default_factory=lambda: np.array(object=[], dtype=int))
 
 
 class DotDict(dict):
